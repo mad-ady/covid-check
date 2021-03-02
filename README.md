@@ -17,3 +17,7 @@ python3 covid-check.py covid.yaml
 ```
 
 Should run as a cron job.
+```
+#check covid availability
+0 * * * * cd /home/user/bin; /usr/bin/python3 /home/user/bin/covid-check.py /home/user/bin/covid.yaml 2>&1 >/home/user/bin/covid.log
+```
