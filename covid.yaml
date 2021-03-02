@@ -1,0 +1,7 @@
+username: your_username@email.com
+password: 'your-secret-password'
+chromepath: /usr/lib/chromium-browser/chromedriver
+external_program: /usr/local/bin/telegram-send
+search:
+  - 'Name of Patient 1'
+  - 'Name of Patient 2'
