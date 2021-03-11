@@ -5,3 +5,6 @@ external_program: /usr/local/bin/telegram-send
 search:
   - 'Name of Patient 1'
   - 'Name of Patient 2'
+centers:
+  - 'Center 1'
+  - 'Center 2'
