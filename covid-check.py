@@ -46,7 +46,8 @@ def getCenters(row):
             '3': "location",
             '4': "address",
             '5': "available_slots",
-            '6': "actions"
+            '6': "queue",
+            '7': "actions"
         }
     cells = row.find_elements_by_xpath(".//mat-cell")
     cell_counter = 1
@@ -57,13 +58,13 @@ def getCenters(row):
         for span in spans:
             print(" --- Span ---\n")
             #print(span.text)
-            print(span.get_attribute("innerHTML"))
-            data[cell_mapping[str(cell_counter)]] = span.get_attribute("innerHTML")
+            print(span.get_attribute("innerHTML").encode('ascii', "ignore"))
+            data[cell_mapping[str(cell_counter)]] = span.get_attribute("innerHTML").encode('ascii', 'ignore')
         mat_chips = cell.find_elements_by_xpath(".//mat-chip")
         for mat_chip in mat_chips:
             print(" --- MAT-CHIP ---\n")
             
-            places = mat_chip.get_attribute("innerHTML")
+            places = mat_chip.get_attribute("innerHTML").encode('ascii', 'ignore')
             m = re.search('\s*([0-9]+)\s*$', places)
             if(m.group(1)):
                 places = m.group(1)
@@ -73,18 +74,30 @@ def getCenters(row):
             #see if buttons[0] is enabled or disabled
             state = buttons[0].is_enabled()
             print("Button is "+str(state))
-            data[cell_mapping[str(cell_counter)]] = buttons[0].is_enabled()
-            data["program_action"] = buttons[0]
+            data["button1"] = buttons[0].is_enabled()
+            data["button1_action"] = buttons[0]
+        if(len(buttons) >= 2):
+            #see if buttons[0] is enabled or disabled
+            state = buttons[1].is_enabled()
+            print("Button is "+str(state))
+            data["button2"] = buttons[1].is_enabled()
+            data["button2_action"] = buttons[1]
         cell_counter+=1
     return data
 
 try:
+    print("loading page (waiting.1.)...\n")
     driver.get('https://programare.vaccinare-covid.gov.ro/auth/login')
-    print("loading page...\n")
-    time.sleep(10)
+    print("loading page (waiting.2.)...\n")
+    myElem = WebDriverWait(driver, 50).until(EC.presence_of_element_located((By.ID, 'mat-input-0')))
+    print("finished loading page\n")
+    #time.sleep(15)
     driver.save_screenshot("1-login.png")
     print("sending username...\n")
-    driver.find_element_by_id('mat-input-0').send_keys(USERNAME)
+    username_field = driver.find_element_by_id('mat-input-0')
+    #if username_field:
+    #    subprocess.run([conf['external_program'], "Login re-enabled"], stdout=subprocess.PIPE, universal_newlines=True)
+    username_field.send_keys(USERNAME)
     driver.save_screenshot("2-username.png")
     
     time.sleep(random.randint(1,5))
@@ -122,7 +135,9 @@ try:
             '2': "cnp",
             '3': "id",
             '4': "added_by",
-            '5': "actions"
+            '5': "waiting_list",
+            '6': "expire",
+            '7': "actions"
         }
         for cell in cells:
             print(" ---- Cell ----\n")
@@ -132,8 +147,8 @@ try:
             for span in spans:
                 print(" --- Span ---\n")
                 #print(span.text)
-                print(span.get_attribute("innerHTML"))
-                data[cell_mapping[str(cell_counter)]] = span.get_attribute("innerHTML")
+                print(span.get_attribute("innerHTML").encode('ascii', 'ignore'))
+                data[cell_mapping[str(cell_counter)]] = span.get_attribute("innerHTML").encode('ascii', 'ignore')
 
             buttons = cell.find_elements_by_xpath(".//button")
             if(len(buttons) > 2):
@@ -155,13 +170,13 @@ try:
     for user in conf['search']:
         print("User "+user+"\n")
         for patient in patients:
-            if patient['name'] == user:
+            if patient['name'] == bytes(user, "ascii"):
                 print("Found user "+user+", button state is "+str(patient['actions'])+"\n")
                 #button is active
                 if(patient['actions'] == True):
 
                     #click the button to see which centers are available
-                    button = data['program_action']
+                    button = patient['program_action']
                     print("Clicking on Programeaza for "+user+"...\n")
                     #scroll the browser view to have the button visible
                     ActionChains(driver).move_to_element(button).perform()
@@ -169,6 +184,8 @@ try:
                     element = WebDriverWait(driver, 20).until(EC.visibility_of(button))
                     driver.save_screenshot("6-recipients-"+user+".png")
                     #click on it
+                    print("Clicking on element ...")
+                    pp.pprint(element)
                     element.click()
                     time.sleep(10)
                     
@@ -218,23 +235,37 @@ try:
                     
                     available = ""
                     bingo = ""
+                    select_active = ""
+                    bingo_active = ""
+                    queue = ""
+                    
                     for center in centers:
                         # are there centers with available places?
                         if int(center['available_slots']):
                             available += center['name'] + "(" + center['available_slots'] + "), "
                             # are there places defined in the yaml?    
                             for pl in conf['centers']:
-                                if re.search(pl, center.name):
+                                if re.search(pl, center['name']):
                                    bingo += center['name'] + "(" + center['available_slots'] + "), " 
-                        
+                        if center['button1'] or center['button2']:
+                            select_active += center['name'] + "(active), "
+                            # are there places defined in the yaml?    
+                            for pl in conf['centers']:
+                                if re.search(pl, center['name']):
+                                   bingo_active += center['name'] + "(active), "
+
                     if (bingo != ""):
                         message = "User "+user+" can make a covid appointment!" + bingo
                         subprocess.run([conf['external_program'], message], stdout=subprocess.PIPE, universal_newlines=True)    
                     elif (available != ""):
                         message = "User "+user+" can make a covid appointment! Centers with available slots: " + available
                         subprocess.run([conf['external_program'], message], stdout=subprocess.PIPE, universal_newlines=True)
-                    
-                    
+                    elif (bingo_active != ""):
+                        message = "User "+user+" can make a covid appointment! " + bingo_active
+                        subprocess.run([conf['external_program'], message], stdout=subprocess.PIPE, universal_newlines=True)
+                    elif (select_active != ""): 
+                        message = "User "+user+" can make a covid appointment! Centers that can be selected: " + select_active
+                        subprocess.run([conf['external_program'], message], stdout=subprocess.PIPE, universal_newlines=True)
                     #exit after one user (I know, it's lame, but it's quick and dirty and prevents me from keeping state)
                     sys.exit()
 finally:
